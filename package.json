@@ -1,0 +1,56 @@
+{
+  "name": "jsp-simple-formatter",
+  "displayName": "JSP Simple Formatter",
+  "description": "A simple tag-based indentation formatter for JSP files.",
+  "version": "0.0.2",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Formatters"
+  ],
+  "activationEvents": [
+    "onLanguage:jsp"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "JSP Simple Formatter",
+      "properties": {
+        "jspFormatter.indentSize": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null,
+          "description": "들여쓰기 스페이스 갯수. 설정하지 않으면 에디터 기본 탭 크기 설정(editor.tabSize)을 따릅니다."
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "jsp",
+        "aliases": [
+          "JSP",
+          "jsp"
+        ],
+        "extensions": [
+          ".jsp"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
+    "build": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.0",
+    "@vscode/vsce": "^3.0.0"
+  }
+}
