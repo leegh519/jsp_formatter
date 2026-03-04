@@ -66,12 +66,52 @@ var JSPSimpleFormatter = class {
       "track",
       "wbr"
     ]);
+    let insideScript = false;
+    let scriptBaseIndentLevel = 0;
+    let jsIndentLevel = 0;
     for (let i = 0; i < document.lineCount; i++) {
       const line = document.lineAt(i);
       let text = line.text.trim();
       if (text.length === 0) {
         if (line.text.length > 0) {
           edits.push(vscode.TextEdit.replace(line.range, ""));
+        }
+        continue;
+      }
+      if (insideScript) {
+        const isClosingScript = /^<\/script>/i.test(text);
+        if (isClosingScript) {
+          insideScript = false;
+          jsIndentLevel = 0;
+          currentIndentLevel = scriptBaseIndentLevel;
+          currentIndentLevel = Math.max(0, currentIndentLevel - 1);
+          const proposedIndent3 = indentString.repeat(currentIndentLevel);
+          const formattedLine3 = proposedIndent3 + text;
+          if (line.text !== formattedLine3) {
+            edits.push(vscode.TextEdit.replace(line.range, formattedLine3));
+          }
+          continue;
+        }
+        const jsLineStartsClose = /^\}/.test(text);
+        if (jsLineStartsClose) {
+          jsIndentLevel = Math.max(0, jsIndentLevel - 1);
+        }
+        const totalJsIndent = scriptBaseIndentLevel + jsIndentLevel;
+        const proposedIndent2 = indentString.repeat(totalJsIndent);
+        const formattedLine2 = proposedIndent2 + text;
+        if (line.text !== formattedLine2) {
+          edits.push(vscode.TextEdit.replace(line.range, formattedLine2));
+        }
+        const jsOpenCount = countJsBraces(text, "{");
+        const jsCloseCount = countJsBraces(text, "}");
+        const netOpen = jsOpenCount - jsCloseCount;
+        if (!jsLineStartsClose) {
+          jsIndentLevel = Math.max(0, jsIndentLevel + netOpen);
+        } else {
+          jsIndentLevel = Math.max(
+            0,
+            jsIndentLevel + jsOpenCount - (jsCloseCount - 1)
+          );
         }
         continue;
       }
@@ -87,12 +127,19 @@ var JSPSimpleFormatter = class {
       if (line.text !== formattedLine) {
         edits.push(vscode.TextEdit.replace(line.range, formattedLine));
       }
+      if (/^<script(\s[^>]*)?>$/i.test(text)) {
+        insideScript = true;
+        scriptBaseIndentLevel = currentIndentLevel + 1;
+        jsIndentLevel = 0;
+        currentIndentLevel += 1;
+        continue;
+      }
       let lineOpenCount = 0;
       let lineCloseCount = 0;
       let calculationText = text;
       calculationText = calculationText.replace(/<%--.*?--%>/g, "");
       calculationText = calculationText.replace(/<!--.*?-->/g, "");
-      const tagRegex = /<(\/?)([a-zA-Z0-9_:\-]+)((?:[^><"']+|"[^"]*"|'[^']*'|<[^>]*>)*)(\/?)>|<%(?!@)(!?)|%>|<!--|-->|<%--|--%>/g;
+      const tagRegex = /<(\/?)((?:[a-zA-Z0-9_:\-])+)((?:[^><"']+|"[^"]*"|'[^']*'|<[^>]*>)*)(\/?)?(?<!\/)>|<%(?!@)(!?)|%>|<!--|-->|<%--|-%>/g;
       let match;
       while ((match = tagRegex.exec(calculationText)) !== null) {
         const fullTag = match[0];
@@ -128,6 +175,69 @@ var JSPSimpleFormatter = class {
     return edits;
   }
 };
+function countJsBraces(line, brace) {
+  let count = 0;
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inTemplate = false;
+  let inLineComment = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    const next = line[i + 1];
+    if (inLineComment) {
+      break;
+    }
+    if (!inSingleQuote && !inDoubleQuote && !inTemplate) {
+      if (ch === "/" && next === "/") {
+        inLineComment = true;
+        continue;
+      }
+      if (ch === '"') {
+        inDoubleQuote = true;
+        continue;
+      }
+      if (ch === "'") {
+        inSingleQuote = true;
+        continue;
+      }
+      if (ch === "`") {
+        inTemplate = true;
+        continue;
+      }
+    } else if (inDoubleQuote) {
+      if (ch === "\\" && next === '"') {
+        i++;
+        continue;
+      }
+      if (ch === '"') {
+        inDoubleQuote = false;
+        continue;
+      }
+    } else if (inSingleQuote) {
+      if (ch === "\\" && next === "'") {
+        i++;
+        continue;
+      }
+      if (ch === "'") {
+        inSingleQuote = false;
+        continue;
+      }
+    } else if (inTemplate) {
+      if (ch === "\\" && next === "`") {
+        i++;
+        continue;
+      }
+      if (ch === "`") {
+        inTemplate = false;
+        continue;
+      }
+    }
+    if (!inSingleQuote && !inDoubleQuote && !inTemplate && ch === brace) {
+      count++;
+    }
+  }
+  return count;
+}
 
 // src/extension.ts
 function activate(context) {
